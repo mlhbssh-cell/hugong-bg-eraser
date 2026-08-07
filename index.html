@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>沪工抠图助手 · 批量抠图</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Noto+Serif+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EFE9DD;
+    --bg-soft: #E5DCC8;
+    --paper: #F6F1E3;
+    --card: #FBF7EC;
+    --ink: #1A1714;
+    --ink-soft: #6B5F4F;
+    --ink-mute: #998A75;
+    --gold: #B08A4A;
+    --gold-deep: #8C6E38;
+    --gold-soft: #D9C39A;
+    --line: #C9BDA3;
+    --line-deep: #A8997C;
+    --ok: #6B8E5A;
+    --err: #B5544A;
+    --warn: #B08232;
+    --display: "DM Serif Display", "Playfair Display", "Noto Serif SC", "Source Han Serif SC", "STSong", "Songti SC", "SimSun", serif;
+    --serif: "Noto Serif SC", "Source Han Serif SC", "STSong", "Songti SC", "SimSun", serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); }
+  body {
+    font-family: var(--serif);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(176,138,74,.05) 0%, transparent 40%),
+      radial-gradient(circle at 80% 90%, rgba(176,138,74,.06) 0%, transparent 45%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.10 0 0 0 0 0.09 0 0 0 0 0.08 0 0 0 0.04 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    background-size: auto, auto, 320px 320px;
+  }
+  /* ===== 顶部双线 + 品牌条 ===== */
+  .top-rule { border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 9px 0; }
+  .nav {
+    max-width: 1080px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px;
+    font-size: 12px; color: var(--ink);
+    font-variant: small-caps; letter-spacing: 1.5px;
+  }
+  .nav .brand {
+    font-family: Arial, "Helvetica Neue", "PingFang SC", sans-serif;
+    font-weight: 800; font-size: 15px; letter-spacing: 3px; color: var(--ink);
+  }
+  .nav .tagline { color: var(--ink-soft); font-size: 11px; letter-spacing: 2.5px; }
+  .nav .tagline .star { color: var(--gold); margin: 0 4px; }
+  /* ===== Main ===== */
+  main { max-width: 760px; margin: 0 auto; padding: 24px 24px 40px; width: 100%; flex: 1; }
+  /* Upload zone */
+  #uploadZone {
+    border: 1.5px dashed var(--line-deep);
+    background: var(--paper);
+    border-radius: 14px;
+    padding: 52px 20px; text-align: center;
+    cursor: pointer;
+    transition: all .25s;
+    position: relative;
+  }
+  #uploadZone:hover, #uploadZone.dragover {
+    border-color: var(--gold-deep);
+    background: var(--card);
+    box-shadow: 0 0 0 4px rgba(176,138,74,.10);
+  }
+  #uploadZone .up-icon { color: var(--gold-deep); margin-bottom: 14px; }
+  #uploadZone .up-main {
+    font-family: var(--display); font-size: 28px; color: var(--ink);
+    letter-spacing: 0.5px; line-height: 1.2;
+  }
+  #uploadZone .up-main b { color: var(--gold-deep); font-style: italic; }
+  #uploadZone .up-sub {
+    font-size: 13px; color: var(--ink-soft); margin-top: 12px;
+    font-family: var(--serif);
+  }
+  #uploadZone .up-sub .tag {
+    display: inline-block; padding: 3px 10px; margin: 0 3px;
+    border: 1px solid var(--gold-soft); color: var(--gold-deep);
+    border-radius: 999px; font-size: 11px; letter-spacing: 1px;
+  }
+  /* Cold start banner */
+  #coldBanner {
+    display: none; margin-top: 14px;
+    background: var(--paper); border: 1px solid var(--gold-soft);
+    color: var(--ink-soft); border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; line-height: 1.7;
+    font-family: var(--serif);
+  }
+  #coldBanner.show { display: flex; align-items: flex-start; gap: 8px; }
+  /* 操作区：按钮 + 进度 */
+  #actions {
+    margin-top: 18px;
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+  .action-buttons {
+    display: flex; gap: 14px; flex-wrap: wrap; justify-content: center;
+  }
+  .btn-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 28px; border: 1.5px solid var(--gold-deep);
+    border-radius: 999px; background: transparent;
+    color: var(--gold-deep); font-family: var(--serif);
+    font-size: 15px; font-weight: 600; letter-spacing: 1px;
+    cursor: pointer; transition: all .2s;
+  }
+  .btn-pill:hover:not(:disabled) { background: var(--gold-deep); color: var(--paper); }
+  .btn-pill.fill { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .btn-pill.fill:hover:not(:disabled) { background: var(--gold-deep); border-color: var(--gold-deep); }
+  .btn-pill:disabled { opacity: .35; cursor: not-allowed; }
+  .progress-row {
+    width: 100%; display: flex; align-items: center; gap: 14px;
+  }
+  .progress-bar {
+    flex: 1; height: 6px; background: var(--bg-soft);
+    border-radius: 3px; overflow: hidden; border: 1px solid var(--line);
+  }
+  .progress-bar span {
+    display: block; height: 100%; width: 0;
+    background: linear-gradient(90deg, var(--gold), var(--gold-deep));
+    border-radius: 3px;
+    transition: width .3s;
+  }
+  .progress-text {
+    font-size: 12px; color: var(--ink-soft); white-space: nowrap;
+    font-family: var(--display); letter-spacing: 1px; min-width: 60px; text-align: center;
+  }
+  .btn-text {
+    background: transparent; border: none; padding: 6px 12px;
+    font-family: var(--serif); font-size: 12px; color: var(--ink-soft);
+    cursor: pointer; letter-spacing: 1px; border-radius: 4px;
+  }
+  .btn-text:hover:not(:disabled) { color: var(--err); background: rgba(181,84,74,.08); }
+  .btn-text:disabled { opacity: .35; cursor: not-allowed; }
+  /* Cards */
+  .section-title {
+    margin-top: 36px; padding-bottom: 10px;
+    font-family: var(--display); font-size: 22px; color: var(--ink);
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .section-title .star { color: var(--gold); font-size: 0.85em; }
+  .section-title .count { color: var(--ink-mute); font-family: var(--serif); font-size: 13px; letter-spacing: 1px; }
+  #queue, #results {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px; margin-top: 22px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line-deep);
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    transition: box-shadow .2s, transform .2s;
+    position: relative;
+  }
+  .card::before, .card::after {
+    content: ""; position: absolute; width: 12px; height: 12px;
+    border: 1px solid var(--gold); border-radius: 50%;
+    background: var(--bg);
+  }
+  .card::before { top: -6px; left: -6px; }
+  .card::after { bottom: -6px; right: -6px; }
+  .card:hover { box-shadow: 4px 4px 0 var(--gold-soft); transform: translate(-1px,-1px); }
+  .card.error { border-color: var(--err); }
+  .card.error::before, .card.error::after { border-color: var(--err); }
+  .card.done { border-color: var(--ok); }
+  .card.done::before, .card.done::after { border-color: var(--ok); }
+  .thumb {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    background: repeating-conic-gradient(var(--bg-soft) 0% 25%, var(--bg) 0% 50%) 50% / 14px 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .thumb .dual { display: flex; width: 100%; height: 100%; }
+  .thumb .dual .half { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+  .thumb .dual .half img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .thumb .dual .half + .half { border-left: 1.5px solid var(--paper); }
+  .thumb .lbl {
+    position: absolute; top: 6px; font-size: 10px; padding: 2px 8px;
+    border-radius: 999px; background: rgba(26,23,20,.85); color: var(--paper);
+    font-family: var(--display); letter-spacing: 1.5px;
+  }
+  .thumb .lbl.l-orig { left: 6px; }
+  .thumb .lbl.l-res { right: 6px; background: rgba(107,142,90,.9); }
+  .badge {
+    position: absolute; bottom: 6px; left: 6px;
+    font-size: 10px; padding: 3px 10px; border-radius: 999px;
+    color: var(--paper); background: var(--ink-soft);
+    font-family: var(--display); letter-spacing: 1.5px;
+  }
+  .badge.st-working { background: var(--gold-deep); }
+  .badge.st-done { background: var(--ok); }
+  .badge.st-error { background: var(--err); }
+  .badge.st-queued { background: var(--warn); }
+  .card-body { padding: 12px 14px 14px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .card-name { font-size: 14px; font-weight: 600; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .card-meta {
+    font-size: 11px; color: var(--ink-soft);
+    display: flex; justify-content: space-between;
+    font-family: var(--display); letter-spacing: 1px;
+  }
+  .card-meta .idx {
+    background: var(--ink); color: var(--paper);
+    padding: 2px 8px; border-radius: 4px;
+  }
+  .card-err { font-size: 12px; color: var(--err); word-break: break-all; }
+  .card-ops { display: flex; gap: 8px; margin-top: 6px; }
+  .mini-btn {
+    flex: 1; background: transparent; color: var(--ink);
+    border: 1px solid var(--line-deep); border-radius: 4px;
+    padding: 6px 0; font-size: 12px; cursor: pointer;
+    font-family: var(--serif); letter-spacing: 1px;
+    transition: all .15s;
+  }
+  .mini-btn:hover:not(:disabled) { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .mini-btn:disabled { opacity: .35; cursor: not-allowed; }
+  .mini-btn.primary { background: var(--gold-deep); border-color: var(--gold-deep); color: var(--paper); }
+  .mini-btn.primary:hover:not(:disabled) { background: var(--ink); border-color: var(--ink); }
+  .mini-btn.danger { color: var(--err); border-color: var(--err); }
+  .mini-btn.danger:hover:not(:disabled) { background: var(--err); color: var(--paper); }
+  /* toast */
+  #toastWrap {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 999; display: flex; flex-direction: column; gap: 8px; align-items: center;
+  }
+  .toast {
+    background: var(--ink); color: var(--paper);
+    padding: 10px 20px; border-radius: 999px; font-size: 13px;
+    box-shadow: 0 6px 20px rgba(26,23,20,.18);
+    animation: toastIn .25s ease;
+    max-width: 80vw; font-family: var(--serif);
+    border: 1px solid var(--gold);
+  }
+  .toast.warn { background: var(--warn); }
+  .toast.err { background: var(--err); }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  /* responsive */
+  @media (max-width: 640px) {
+    .top-bar { padding: 20px 16px 4px; }
+    .top-bar .sub { display: none; }
+    main { padding: 16px 16px 32px; }
+    #uploadZone { padding: 36px 14px; }
+    #uploadZone .up-main { font-size: 22px; }
+    .btn-pill { padding: 10px 22px; font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top-rule">
+  <div class="nav">
+    <div class="brand">HUGONG</div>
+    <div class="tagline">沪工抠图助手 <span class="star">✦</span> BATCH ERASER</div>
+  </div>
+</div>
+
+<main>
+  <!-- 拖拽区 -->
+  <div id="uploadZone">
+    <div class="up-icon">
+      <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    </div>
+    <div class="up-main">拖拽图片到这里，或 <b>点击选择</b></div>
+    <div class="up-sub">
+      <span class="tag">PNG</span>
+      <span class="tag">JPG</span>
+      <span class="tag">WEBP</span>
+      · 单张不超过 <b>5MB</b>（超出自动压缩）· 数量不限
+    </div>
+  </div>
+  <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" multiple hidden>
+
+  <!-- 操作按钮 -->
+  <div id="actions">
+    <div class="action-buttons">
+      <button class="btn-pill fill" id="btnStart">开始抠图</button>
+      <button class="btn-pill" id="btnDownloadAll" disabled>下载全部</button>
+    </div>
+    <div class="progress-row">
+      <div class="progress-bar"><span id="progressFill"></span></div>
+      <span class="progress-text" id="progressText"></span>
+      <button class="btn-text" id="btnClearAll" disabled>清空</button>
+    </div>
+  </div>
+
+  <!-- 冷启动提示 -->
+  <div id="coldBanner">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="flex:none;margin-top:1px">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+    </svg>
+    <span>抠图服务首次调用可能需要 <b>1-3 分钟</b> 唤醒（免费服务闲置会休眠），请耐心等待，不要关闭页面。之后处理速度约 1-2 秒/张。</span>
+  </div>
+
+  <!-- 队列区 -->
+  <div class="section-title">图片队列 <span class="star">✦</span> <span class="count" id="queueCount"></span></div>
+  <div id="queue"></div>
+</main>
+
+<div id="toastWrap"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var BASE = 'https://feyninc-feynobg.hf.space/gradio_api';
+  var MAX_FILE = 5 * 1024 * 1024;
+  var MAX_RETRY = 2;
+  var POLL_TIMEOUT = 5 * 60 * 1000;
+  var ACCEPT_EXT = /\.(png|jpe?g|webp)$/i;
+  var HEIC_EXT = /\.(heic|heif)$/i;
+  var softLimit = 30;
+
+  var state = { phase: 'idle', items: [], seq: 0 };
+
+  var $ = function (s) { return document.querySelector(s); };
+  var zone = $('#uploadZone');
+  var fileInput = $('#fileInput');
+  var btnStart = $('#btnStart');
+  var btnDownloadAll = $('#btnDownloadAll');
+  var btnClearAll = $('#btnClearAll');
+  var queueEl = $('#queue');
+  var queueCount = $('#queueCount');
+  var progressFill = $('#progressFill');
+  var progressText = $('#progressText');
+  var coldBanner = $('#coldBanner');
+  var toastWrap = $('#toastWrap');
+
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  function formatBytes(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1024 / 1024).toFixed(2) + ' MB';
+  }
+
+  function toast(msg, type) {
+    var el = document.createElement('div');
+    el.className = 'toast' + (type ? ' ' + type : '');
+    el.textContent = msg;
+    toastWrap.appendChild(el);
+    setTimeout(function () { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, 3200);
+    setTimeout(function () { el.remove(); }, 3600);
+  }
+
+  function addFiles(fileList) {
+    var added = 0, warned = [];
+    Array.prototype.forEach.call(fileList, function (file) {
+      var err = validateFile(file);
+      if (err) { warned.push(file.name + '（' + err + '）'); return; }
+      if (state.items.some(function (it) { return it.name === file.name && it.file.size === file.size; })) return;
+      state.items.push({
+        id: ++state.seq, file: file, name: file.name, size: file.size,
+        status: 'queued', previewUrl: URL.createObjectURL(file),
+        resultBlob: null, resultUrl: null, retries: 0, err: null
+      });
+      added++;
+    });
+    if (warned.length) toast(warned[0] + (warned.length > 1 ? ' 等 ' + warned.length + ' 个文件' : ''), 'warn');
+    if (added) {
+      toast('已添加 ' + added + ' 张图片');
+      if (state.items.length > softLimit) toast('图片较多，将逐张排队处理，耗时较长', 'warn');
+    }
+    state.phase = 'idle';
+    render();
+  }
+
+  function validateFile(file) {
+    var extOk = ACCEPT_EXT.test(file.name);
+    var typeOk = /^image\/(png|jpeg|webp)$/.test(file.type);
+    if (extOk || typeOk) return null;
+    if (HEIC_EXT.test(file.name) || /^image\/heic/.test(file.type)) {
+      return 'HEIC 浏览器无法打开，请先转成 JPG/PNG';
+    }
+    return '仅支持 PNG/JPG/WebP';
+  }
+
+  function removeItem(id) {
+    if (state.phase === 'processing') return;
+    var idx = state.items.findIndex(function (it) { return it.id === id; });
+    if (idx < 0) return;
+    var it = state.items[idx];
+    URL.revokeObjectURL(it.previewUrl);
+    if (it.resultUrl) URL.revokeObjectURL(it.resultUrl);
+    state.items.splice(idx, 1);
+    render();
+  }
+
+  function clearAll() {
+    if (state.phase === 'processing') return;
+    state.items.forEach(function (it) {
+      URL.revokeObjectURL(it.previewUrl);
+      if (it.resultUrl) URL.revokeObjectURL(it.resultUrl);
+    });
+    state.items = [];
+    state.phase = 'idle';
+    progressFill.style.width = '0%';
+    progressText.textContent = '';
+    render();
+  }
+
+  function loadImage(blob) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(blob);
+      var img = new Image();
+      img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('图片无法解码')); };
+      img.src = url;
+    });
+  }
+
+  function canvasToBlob(canvas, type, q) {
+    return new Promise(function (res, rej) {
+      canvas.toBlob(function (b) { b ? res(b) : rej(new Error('压缩失败')); }, type, q);
+    });
+  }
+
+  async function compressImage(blob) {
+    var img = await loadImage(blob);
+    var MAX_EDGE = 2000;
+    var w = img.naturalWidth || 1, h = img.naturalHeight || 1;
+    var k = Math.min(1, MAX_EDGE / Math.max(w, h));
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * k));
+    canvas.height = Math.max(1, Math.round(h * k));
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    var quals = [0.85, 0.7, 0.55];
+    for (var i = 0; i < quals.length; i++) {
+      var out = await canvasToBlob(canvas, 'image/webp', quals[i]);
+      if (out.size <= MAX_FILE) return out;
+    }
+    var k2 = 1200 / Math.max(canvas.width, canvas.height);
+    if (k2 < 1) {
+      canvas.width = Math.max(1, Math.round(canvas.width * k2));
+      canvas.height = Math.max(1, Math.round(canvas.height * k2));
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      for (var j = 0; j < quals.length; j++) {
+        var out2 = await canvasToBlob(canvas, 'image/webp', quals[j]);
+        if (out2.size <= MAX_FILE) return out2;
+      }
+    }
+    throw new Error('压缩后仍超过 5MB，无法处理');
+  }
+
+  async function apiUpload(blob, filename) {
+    var fd = new FormData();
+    fd.append('files', blob, filename);
+    var res = await fetch(BASE + '/upload', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error('上传失败（HTTP ' + res.status + '）');
+    var arr = await res.json();
+    if (!Array.isArray(arr) || !arr[0]) throw new Error('上传返回异常');
+    return arr[0];
+  }
+
+  async function apiCall(path) {
+    var res = await fetch(BASE + '/call/remove_background', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: [{ path: path }] })
+    });
+    if (!res.ok) throw new Error('抠图请求失败（HTTP ' + res.status + '）');
+    var j = await res.json();
+    if (!j.event_id) throw new Error('抠图请求返回异常');
+    return j.event_id;
+  }
+
+  async function apiPoll(eventId) {
+    var url = BASE + '/call/remove_background/' + eventId;
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, POLL_TIMEOUT);
+    try {
+      var res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) throw new Error('轮询失败（HTTP ' + res.status + '）');
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var buf = '';
+      while (true) {
+        var chunk = await reader.read();
+        if (chunk.done) break;
+        buf += decoder.decode(chunk.value, { stream: true });
+        var idx;
+        while ((idx = buf.indexOf('\n')) >= 0) {
+          var line = buf.slice(0, idx).trim();
+          buf = buf.slice(idx + 1);
+          if (line.indexOf('data:') !== 0) continue;
+          var payload;
+          try { payload = JSON.parse(line.slice(5).trim()); } catch (e) { continue; }
+          if (Array.isArray(payload) && payload.length && Array.isArray(payload[0]) && payload[0].length) {
+            return payload[0];
+          }
+          if (payload && typeof payload === 'object' && payload.event === 'complete') {
+            var out = payload.output && payload.output.data;
+            if (Array.isArray(out) && out.length) return out;
+          }
+        }
+      }
+      throw new Error('轮询连接提前结束');
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function apiDownload(fileObj) {
+    var url = fileObj.url || (BASE + '/file=' + (fileObj.path || ''));
+    var res = await fetch(url);
+    if (!res.ok) throw new Error('结果下载失败（HTTP ' + res.status + '）');
+    return await res.blob();
+  }
+
+  async function processOne(item) {
+    var lastErr;
+    for (var attempt = 0; attempt <= MAX_RETRY; attempt++) {
+      try {
+        var blob = item.file;
+        if (item.file.size > MAX_FILE) {
+          setStatus(item, 'working', '压缩中…');
+          blob = await compressImage(item.file);
+        }
+        setStatus(item, 'working', attempt > 0 ? '上传中…（第 ' + (attempt + 1) + ' 次）' : '上传中…');
+        var path = await apiUpload(blob, item.name);
+        setStatus(item, 'working', '抠图中…');
+        var eventId = await apiCall(path);
+        var outArr = await apiPoll(eventId);
+        var resultObj = outArr[1] || outArr[0];
+        setStatus(item, 'working', '下载结果…');
+        var resultBlob = await apiDownload(resultObj);
+        item.resultBlob = resultBlob;
+        item.resultUrl = URL.createObjectURL(resultBlob);
+        item.retries = attempt;
+        return;
+      } catch (e) {
+        lastErr = e;
+        if (e.name === 'AbortError') lastErr = new Error('处理超时（超过 5 分钟），服务可能繁忙');
+        if (attempt < MAX_RETRY) await sleep(1200 * (attempt + 1));
+      }
+    }
+    throw lastErr || new Error('未知错误');
+  }
+
+  function setStatus(item, status, note) {
+    item.status = status;
+    item._note = note || '';
+    render();
+  }
+
+  async function runPipeline() {
+    if (state.phase === 'processing') return;
+    var todo = state.items.filter(function (it) { return it.status !== 'done'; });
+    if (!todo.length) { toast('没有待处理的图片', 'warn'); return; }
+    state.phase = 'processing';
+    render();
+
+    var total = state.items.length;
+    var finished = state.items.filter(function (it) { return it.status === 'done'; }).length;
+    for (var i = 0; i < todo.length; i++) {
+      var item = todo[i];
+      if (state.phase !== 'processing') break;
+      try {
+        await processOne(item);
+        item.status = 'done';
+        item.err = null;
+      } catch (e) {
+        item.status = 'error';
+        item.err = e.message || String(e);
+      }
+      finished++;
+      updateProgress(finished, total);
+      render();
+    }
+    state.phase = 'completed';
+    render();
+    var ok = state.items.filter(function (it) { return it.status === 'done'; }).length;
+    var fail = state.items.filter(function (it) { return it.status === 'error'; }).length;
+    if (fail) toast('完成：成功 ' + ok + ' 张，失败 ' + fail + ' 张（可点卡片上的"重试"）', fail ? 'err' : '');
+    else toast('全部 ' + ok + ' 张抠图完成！');
+  }
+
+  function updateProgress(finished, total) {
+    var pct = total ? Math.round(finished / total * 100) : 0;
+    progressFill.style.width = pct + '%';
+    progressText.textContent = finished + ' / ' + total;
+  }
+
+  function retryItem(id) {
+    var it = state.items.find(function (x) { return x.id === id; });
+    if (!it || it.status === 'done' || state.phase === 'processing') return;
+    if (it.resultUrl) { URL.revokeObjectURL(it.resultUrl); it.resultUrl = null; }
+    it.resultBlob = null; it.err = null; it.status = 'queued';
+    render();
+    if (state.phase !== 'processing') runPipeline();
+  }
+
+  function noBgName(origName) {
+    return (origName.replace(/\.[^.]+$/, '') || 'image') + '_no_bg.png';
+  }
+
+  function downloadOne(id) {
+    var it = state.items.find(function (x) { return x.id === id; });
+    if (!it || !it.resultBlob) return;
+    var url = URL.createObjectURL(it.resultBlob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = noBgName(it.name);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+  }
+
+  var CRC_TABLE = (function () {
+    var t = new Uint32Array(256);
+    for (var n = 0; n < 256; n++) {
+      var c = n;
+      for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+
+  function crc32(data) {
+    var c = 0xFFFFFFFF;
+    for (var i = 0; i < data.length; i++) c = CRC_TABLE[(c ^ data[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function writeU32(arr, off, v) {
+    arr[off] = v & 0xFF;
+    arr[off + 1] = (v >>> 8) & 0xFF;
+    arr[off + 2] = (v >>> 16) & 0xFF;
+    arr[off + 3] = (v >>> 24) & 0xFF;
+  }
+
+  function makeZip(entries) {
+    var enc = new TextEncoder();
+    var now = new Date();
+    var dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+    var dosDate = (((now.getFullYear() - 1980) & 0x7F) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+    var locals = [], centrals = [];
+    var offset = 0;
+    entries.forEach(function (e) {
+      var nameBytes = enc.encode(e.name);
+      var crc = crc32(e.data);
+      var lh = new Uint8Array(30);
+      lh[0] = 0x50; lh[1] = 0x4B; lh[2] = 0x03; lh[3] = 0x04;
+      lh[4] = 20;
+      lh[6] = 0x08; lh[7] = 0x00;
+      lh[10] = dosTime & 0xFF; lh[11] = (dosTime >> 8) & 0xFF;
+      lh[12] = dosDate & 0xFF; lh[13] = (dosDate >> 8) & 0xFF;
+      writeU32(lh, 14, crc);
+      writeU32(lh, 18, e.data.length);
+      writeU32(lh, 22, e.data.length);
+      lh[26] = nameBytes.length & 0xFF; lh[27] = (nameBytes.length >> 8) & 0xFF;
+      locals.push(lh, nameBytes, e.data);
+      var ch = new Uint8Array(46);
+      ch[0] = 0x50; ch[1] = 0x4B; ch[2] = 0x01; ch[3] = 0x02;
+      ch[4] = 20; ch[6] = 20;
+      ch[8] = 0x08;
+      ch[12] = dosTime & 0xFF; ch[13] = (dosTime >> 8) & 0xFF;
+      ch[14] = dosDate & 0xFF; ch[15] = (dosDate >> 8) & 0xFF;
+      writeU32(ch, 16, crc);
+      writeU32(ch, 20, e.data.length);
+      writeU32(ch, 24, e.data.length);
+      ch[28] = nameBytes.length & 0xFF; ch[29] = (nameBytes.length >> 8) & 0xFF;
+      writeU32(ch, 42, offset);
+      centrals.push(ch, nameBytes);
+      offset += 30 + nameBytes.length + e.data.length;
+    });
+    var cdSize = 0;
+    centrals.forEach(function (c) { cdSize += c.length; });
+    var eocd = new Uint8Array(22);
+    eocd[0] = 0x50; eocd[1] = 0x4B; eocd[2] = 0x05; eocd[3] = 0x06;
+    eocd[8] = entries.length & 0xFF; eocd[9] = (entries.length >> 8) & 0xFF;
+    eocd[10] = entries.length & 0xFF; eocd[11] = (entries.length >> 8) & 0xFF;
+    writeU32(eocd, 12, cdSize);
+    writeU32(eocd, 16, offset);
+    var all = new Uint8Array(offset + cdSize + 22);
+    var p = 0;
+    locals.forEach(function (c) { all.set(c, p); p += c.length; });
+    centrals.forEach(function (c) { all.set(c, p); p += c.length; });
+    all.set(eocd, p);
+    return new Blob([all], { type: 'application/zip' });
+  }
+
+  async function downloadAll() {
+    var done = state.items.filter(function (it) { return it.status === 'done' && it.resultBlob; });
+    if (!done.length) { toast('还没有可下载的结果', 'warn'); return; }
+    btnDownloadAll.disabled = true;
+    try {
+      var nameCount = {};
+      var entries = [];
+      for (var i = 0; i < done.length; i++) {
+        var it = done[i];
+        var base = noBgName(it.name);
+        nameCount[base] = (nameCount[base] || 0) + 1;
+        var name = nameCount[base] === 1 ? base : base.replace(/\.png$/, ' (' + (nameCount[base] - 1) + ').png');
+        entries.push({ name: name, data: new Uint8Array(await it.resultBlob.arrayBuffer()) });
+      }
+      var zip = makeZip(entries);
+      var d = new Date();
+      var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+      var zipName = 'no_bg_' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '_' + pad(d.getHours()) + pad(d.getMinutes()) + '.zip';
+      var url = URL.createObjectURL(zip);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = zipName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+      toast('已打包 ' + done.length + ' 张结果');
+    } catch (e) {
+      toast('打包失败：' + (e.message || e), 'err');
+    } finally {
+      btnDownloadAll.disabled = false;
+    }
+  }
+
+  var STATUS_TEXT = { queued: '等待中', working: '处理中', done: '完成', error: '失败' };
+
+  function cardHtml(it) {
+    var badge = '<span class="badge st-' + it.status + '">' + (it._note || STATUS_TEXT[it.status]) + '</span>';
+    var thumb = '';
+    if (it.status === 'done' && it.resultUrl) {
+      thumb =
+        '<div class="dual">' +
+          '<div class="half"><span class="lbl l-orig">原图</span><img src="' + it.previewUrl + '" alt="原图"></div>' +
+          '<div class="half"><span class="lbl l-res">抠图</span><img src="' + it.resultUrl + '" alt="抠图结果"></div>' +
+        '</div>';
+    } else {
+      thumb = '<img src="' + it.previewUrl + '" alt="' + escapeHtml(it.name) + '">';
+    }
+    var ops = '';
+    if (state.phase !== 'processing') {
+      if (it.status === 'error') {
+        ops += '<button class="mini-btn primary" data-act="retry" data-id="' + it.id + '">重试</button>';
+      } else if (it.status === 'done') {
+        ops += '<button class="mini-btn primary" data-act="dl" data-id="' + it.id + '">下载</button>';
+      }
+      ops += '<button class="mini-btn danger" data-act="rm" data-id="' + it.id + '" ' + (state.phase === 'processing' ? 'disabled' : '') + '>移除</button>';
+    } else {
+      ops += '<button class="mini-btn" disabled>处理中…</button>';
+    }
+    var errHtml = it.status === 'error' ? '<div class="card-err">' + escapeHtml(it.err || '失败') + '</div>' : '';
+    return (
+      '<div class="card ' + it.status + '">' +
+        '<div class="thumb">' + thumb + badge + '</div>' +
+        '<div class="card-body">' +
+          '<div class="card-name" title="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</div>' +
+          '<div class="card-meta"><span>' + formatBytes(it.size) + '</span><span class="idx"># ' + it.id + '</span></div>' +
+          errHtml +
+          '<div class="card-ops">' + ops + '</div>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function render() {
+    queueCount.textContent = state.items.length ? '（' + state.items.length + ' 张）' : '';
+    if (!state.items.length) {
+      queueEl.innerHTML = '<div style="color:var(--ink-mute);font-size:13px;padding:8px 0;font-style:italic">还没有图片，先拖几张进来吧</div>';
+    } else {
+      queueEl.innerHTML = state.items.map(cardHtml).join('');
+    }
+    var hasTodo = state.items.some(function (it) { return it.status !== 'done'; });
+    var hasDone = state.items.some(function (it) { return it.status === 'done' && it.resultBlob; });
+    btnStart.disabled = state.phase === 'processing' || !hasTodo;
+    btnDownloadAll.disabled = state.phase === 'processing' || !hasDone;
+    btnClearAll.disabled = state.phase === 'processing' || !state.items.length;
+    btnStart.textContent = hasTodo && state.phase === 'completed' ? '重试失败的图片' : '开始抠图';
+    coldBanner.classList.toggle('show', state.phase === 'processing');
+  }
+
+  zone.addEventListener('click', function () { if (state.phase !== 'processing') fileInput.click(); });
+  fileInput.addEventListener('change', function () {
+    addFiles(fileInput.files);
+    fileInput.value = '';
+  });
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.add('dragover'); });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.remove('dragover'); });
+  });
+  zone.addEventListener('drop', function (e) {
+    if (state.phase === 'processing') { toast('正在处理中，请稍候', 'warn'); return; }
+    var files = e.dataTransfer && e.dataTransfer.files;
+    if (files && files.length) addFiles(files);
+  });
+
+  btnStart.addEventListener('click', runPipeline);
+  btnDownloadAll.addEventListener('click', downloadAll);
+  btnClearAll.addEventListener('click', clearAll);
+
+  queueEl.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    var id = Number(btn.getAttribute('data-id'));
+    var act = btn.getAttribute('data-act');
+    if (act === 'rm') removeItem(id);
+    else if (act === 'retry') retryItem(id);
+    else if (act === 'dl') downloadOne(id);
+  });
+
+  window.addEventListener('beforeunload', function (e) {
+    if (state.phase === 'processing') { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
