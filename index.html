@@ -316,7 +316,7 @@
 (function () {
   'use strict';
 
-  var BASE = 'https://feyninc-feynobg.hf.space/gradio_api';
+  var BASE = 'https://briaai-bria-rmbg-2-0.hf.space/gradio_api';
   var MAX_FILE = 5 * 1024 * 1024;
   var MAX_RETRY = 2;
   var POLL_TIMEOUT = 5 * 60 * 1000;
@@ -467,7 +467,7 @@
   }
 
   async function apiCall(path) {
-    var res = await fetch(BASE + '/call/remove_background', {
+    var res = await fetch(BASE + '/call/image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data: [{ path: path }] })
@@ -479,7 +479,7 @@
   }
 
   async function apiPoll(eventId) {
-    var url = BASE + '/call/remove_background/' + eventId;
+    var url = BASE + '/call/image/' + eventId;
     var controller = new AbortController();
     var timer = setTimeout(function () { controller.abort(); }, POLL_TIMEOUT);
     try {
